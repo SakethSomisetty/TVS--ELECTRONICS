@@ -6,6 +6,10 @@ from scipy.optimize import dual_annealing
 import pickle
 import os
 from werkzeug.utils import secure_filename
+from flask import send_file
+import io
+from datetime import datetime
+
 
 app = Flask(__name__)
 
@@ -17,8 +21,8 @@ PROFILE = 'f71022b4196166a460abf9190b460595'  # Replace with your actual profile
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-
-# Load the ML model from the pickle file
+    
+# Load the ML model (Haversine function) from the pickle file
 with open('best_model.pkl', 'rb') as file:
     ml_model = pickle.load(file)
 
@@ -33,50 +37,183 @@ def evaluate(new_service_center, customers_df, service_centers_df):
         total_distance += min(new_distance, existing_min_distance)
     return total_distance
 
+# def generate_plot(customers_df, service_centers_df, optimal_new_center):
+#     import matplotlib
+#     matplotlib.use('Agg')
+#     import matplotlib.pyplot as plt
+
+#     # Combine existing and new service centers
+#     all_centers = service_centers_df[['latitude', 'longitude']].values.tolist()
+#     all_centers.append(optimal_new_center.tolist())
+
+#     # Calculate distance from each customer to all centers
+#     distance_matrix = []
+#     for _, row in customers_df.iterrows():
+#         cust_lat, cust_lon = row['latitude'], row['longitude']
+#         distances = [ml_model(sc_lat, sc_lon, cust_lat, cust_lon) for sc_lat, sc_lon in all_centers]
+#         distance_matrix.append(distances)
+
+#     distance_matrix = np.array(distance_matrix)
+#     nearest_indices = np.argmin(distance_matrix, axis=1)  # Index of nearest service center
+
+#     # Use updated colormap API
+#     color_palette = plt.colormaps.get_cmap('tab10')
+#     customer_colors = [color_palette(idx % 10) for idx in nearest_indices]
+
+#     # Plotting
+#     plt.figure(figsize=(10, 8))
+#     plt.scatter(customers_df['longitude'], customers_df['latitude'], color=customer_colors, s=40, alpha=0.7)
+
+#     for i, center in enumerate(all_centers):
+#         plt.scatter(center[1], center[0], color=color_palette(i), marker='X', edgecolor='black', s=200,
+#                     label=f'Service Center {i+1}' if i < len(all_centers)-1 else 'New Optimal Center')
+
+#     plt.xlabel('Longitude')
+#     plt.ylabel('Latitude')
+#     plt.title('Customers and Service Centers (including new optimized center)')
+#     plt.legend()
+#     plt.grid(True)
+#     plt.tight_layout()
+    
+#     os.makedirs('static', exist_ok=True)
+#     plot_filename = 'service_center_plot.png'
+#     plot_path = os.path.join('static', plot_filename)
+#     plt.savefig(plot_path)
+#     plt.close()
+#     return plot_filename
+
+# def generate_plot(customers_df, service_centers_df, optimal_new_center):
+#     import folium
+#     import os
+
+#     # Combine existing and new service centers
+#     all_centers = service_centers_df[['latitude', 'longitude']].values.tolist()
+#     all_centers.append(optimal_new_center.tolist())
+
+#     # Calculate map bounds based on all coordinates
+#     all_lats = list(customers_df['latitude']) + [lat for lat, _ in all_centers]
+#     all_lngs = list(customers_df['longitude']) + [lng for _, lng in all_centers]
+
+#     min_lat, max_lat = min(all_lats), max(all_lats)
+#     min_lng, max_lng = min(all_lngs), max(all_lngs)
+
+#     center_lat = (min_lat + max_lat) / 2
+#     center_lng = (min_lng + max_lng) / 2
+
+#     # Create folium map
+#     city_map = folium.Map(location=[center_lat, center_lng], zoom_start=12, tiles='OpenStreetMap')
+
+#     # Add customer points
+#     for idx, row in customers_df.iterrows():
+#         folium.CircleMarker(
+#             location=[row['latitude'], row['longitude']],
+#             radius=3,
+#             color='blue',
+#             fill=True,
+#             fill_opacity=0.7,
+#             popup=f"Customer {idx+1}"
+#         ).add_to(city_map)
+
+#     # Add service centers
+#     for i, center in enumerate(all_centers[:-1]):
+#         folium.Marker(
+#             location=center,
+#             popup=f"Service Center {i+1}",
+#             icon=folium.Icon(color='green', icon='building')
+#         ).add_to(city_map)
+
+#     # Add optimal new center
+#     folium.Marker(
+#         location=optimal_new_center,
+#         popup='New Optimal Center',
+#         icon=folium.Icon(color='red', icon='star')
+#     ).add_to(city_map)
+
+#     # Add bounding rectangle
+#     folium.Rectangle(
+#         bounds=[(min_lat, min_lng), (max_lat, max_lng)],
+#         color='black',
+#         fill=True,
+#         fill_opacity=0.05
+#     ).add_to(city_map)
+
+#     # Save the map
+#     os.makedirs('static', exist_ok=True)
+#     plot_filename = 'service_center_map.html'
+#     plot_path = os.path.join('static', plot_filename)
+#     city_map.save(plot_path)
+
+#     return plot_filename
+
 def generate_plot(customers_df, service_centers_df, optimal_new_center):
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
+    import folium
+    import os
 
     # Combine existing and new service centers
     all_centers = service_centers_df[['latitude', 'longitude']].values.tolist()
     all_centers.append(optimal_new_center.tolist())
 
-    # Calculate distance from each customer to all centers
-    distance_matrix = []
-    for _, row in customers_df.iterrows():
-        cust_lat, cust_lon = row['latitude'], row['longitude']
-        distances = [ml_model(sc_lat, sc_lon, cust_lat, cust_lon) for sc_lat, sc_lon in all_centers]
-        distance_matrix.append(distances)
+    # Calculate map bounds based on all coordinates
+    all_lats = list(customers_df['latitude']) + [lat for lat, _ in all_centers]
+    all_lngs = list(customers_df['longitude']) + [lng for _, lng in all_centers]
 
-    distance_matrix = np.array(distance_matrix)
-    nearest_indices = np.argmin(distance_matrix, axis=1)  # Index of nearest service center
+    min_lat, max_lat = min(all_lats), max(all_lats)
+    min_lng, max_lng = min(all_lngs), max(all_lngs)
 
-    # Use updated colormap API
-    color_palette = plt.colormaps.get_cmap('tab10')
-    customer_colors = [color_palette(idx % 10) for idx in nearest_indices]
+    center_lat = (min_lat + max_lat) / 2
+    center_lng = (min_lng + max_lng) / 2
 
-    # Plotting
-    plt.figure(figsize=(10, 8))
-    plt.scatter(customers_df['longitude'], customers_df['latitude'], color=customer_colors, s=40, alpha=0.7)
+    # Create folium map
+    city_map = folium.Map(location=[center_lat, center_lng], zoom_start=12, tiles='OpenStreetMap')
 
-    for i, center in enumerate(all_centers):
-        plt.scatter(center[1], center[0], color=color_palette(i), marker='X', edgecolor='black', s=200,
-                    label=f'Service Center {i+1}' if i < len(all_centers)-1 else 'New Optimal Center')
+    # Add customer points
+    for idx, row in customers_df.iterrows():
+        # Distance to optimal new center
+        new_dist = ml_model(optimal_new_center[0], optimal_new_center[1], row['latitude'], row['longitude'])
+        # Use orange for customers who benefit from new center
+        color = 'orange' if new_dist < row['minimum'] else 'blue'
 
-    plt.xlabel('Longitude')
-    plt.ylabel('Latitude')
-    plt.title('Customers and Service Centers (including new optimized center)')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    
+        folium.CircleMarker(
+            location=[row['latitude'], row['longitude']],
+            radius=3,
+            color=color,
+            fill=True,
+            fill_opacity=0.7,
+            popup=f"Customer {idx+1}"
+        ).add_to(city_map)
+
+    # Add service centers
+    for i, center in enumerate(all_centers[:-1]):
+        folium.Marker(
+            location=center,
+            popup=f"Service Center {i+1}",
+            icon=folium.Icon(color='green', icon='building')
+        ).add_to(city_map)
+
+    # Add optimal new center
+    folium.Marker(
+        location=optimal_new_center,
+        popup='New Optimal Center',
+        icon=folium.Icon(color='red', icon='star')
+    ).add_to(city_map)
+
+    # Add bounding rectangle
+    folium.Rectangle(
+        bounds=[(min_lat, min_lng), (max_lat, max_lng)],
+        color='black',
+        fill=True,
+        fill_opacity=0.05
+    ).add_to(city_map)
+
+    # Save the map
     os.makedirs('static', exist_ok=True)
-    plot_filename = 'service_center_plot.png'
+    plot_filename = 'service_center_map.html'
     plot_path = os.path.join('static', plot_filename)
-    plt.savefig(plot_path)
-    plt.close()
+    city_map.save(plot_path)
+
     return plot_filename
+
+
 
 # Route for home page
 @app.route('/')
@@ -499,6 +636,9 @@ def find_nearest_service_center_hybrid():
     # Upload files
     hybrid_customer_file = request.files['hybrid_customer_file']
     hybrid_service_center_file = request.files['hybrid_service_center_file']
+    
+    # Get threshold from form
+    ml_threshold = float(request.form.get("ml_threshold", 100))  # default is 100 if not provided
 
     # Save files
     cust_path = os.path.join(UPLOAD_FOLDER, secure_filename(hybrid_customer_file.filename))
@@ -516,6 +656,7 @@ def find_nearest_service_center_hybrid():
     cust_lons = customer_df['longitude'].tolist()
 
     sc_addresses = service_center_df['addresses'].tolist()
+    sc_names = service_center_df['service_centers'].tolist()
     sc_lats = service_center_df['latitude'].tolist()
     sc_lons = service_center_df['longitude'].tolist()
 
@@ -533,38 +674,35 @@ def find_nearest_service_center_hybrid():
                 min_distance = dist
                 nearest_idx = j
 
-        if min_distance <= 100:
+        if min_distance <= ml_threshold:
             ml_results.append({
                 'customer_address': customer_addresses[i],
                 'customer_latitude': cust_lat,
                 'customer_longitude': cust_lon,
                 'nearest_service_center_address': sc_addresses[nearest_idx],
+                'nearest_service_center_name': sc_names[nearest_idx],
                 'nearest_service_center_latitude': sc_lats[nearest_idx],
                 'nearest_service_center_longitude': sc_lons[nearest_idx],
                 'final_distance': min_distance,
                 'source': 'ML'
             })
         else:
-            # Push for API processing
             api_input.append({
                 'address': customer_addresses[i],
                 'latitude': cust_lat,
                 'longitude': cust_lon
             })
 
-    # Step 2: Run API logic for customers >50km
+    # Step 2: Run API logic
     api_results = []
     if api_input:
-        # Prepare files
         api_customer_df = pd.DataFrame(api_input)
         api_customer_df['addresses'] = api_customer_df['address']
 
-        # Save temp Excel files
         api_cust_excel = 'temp_api_cust.xlsx'
         api_customer_df.to_excel(api_cust_excel, index=False)
         service_center_df.to_excel('temp_api_sc.xlsx', index=False)
 
-        # Reuse original API logic
         access_token = get_access_token(CLIENT_ID, CLIENT_SECRET)
         sc_eloc, _ = get_eloc(sc_addresses, access_token)
         cust_eloc, _ = get_eloc(api_customer_df['addresses'].tolist(), access_token)
@@ -579,16 +717,17 @@ def find_nearest_service_center_hybrid():
                 'customer_latitude': entry['latitude'],
                 'customer_longitude': entry['longitude'],
                 'nearest_service_center_address': sc_addresses[nearest_idx],
+                'nearest_service_center_name': sc_names[nearest_idx],
                 'nearest_service_center_latitude': sc_lats[nearest_idx],
                 'nearest_service_center_longitude': sc_lons[nearest_idx],
-                'final_distance': distance/1000,
+                'final_distance': distance / 1000,
                 'source': 'API'
             })
 
     # Step 3: Combine ML + API results
     combined_results = ml_results + api_results
 
-    # Step 4: Sort results to match original customer file order
+    # Step 4: Sort results
     address_order = customer_df[['addresses', 'latitude', 'longitude']]
     final_df = pd.DataFrame(combined_results)
     merged_df = address_order.merge(final_df, left_on=['addresses', 'latitude', 'longitude'],
@@ -600,4 +739,4 @@ def find_nearest_service_center_hybrid():
 
 # Main entry point
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True,port=3001)
