@@ -22,7 +22,7 @@ UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
     
-# Load the ML model (Haversine function) from the pickle file
+# Load the ML model from the pickle file
 with open('best_model.pkl', 'rb') as file:
     ml_model = pickle.load(file)
 
