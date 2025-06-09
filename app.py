@@ -159,7 +159,7 @@ def upload_file():
     lon_bounds = (customers_df['longitude'].min(), customers_df['longitude'].max())
 
     # Run dual annealing
-    result = dual_annealing(evaluate, bounds=[lat_bounds, lon_bounds], args=(customers_df, service_centers_df),maxiter=100)
+    result = dual_annealing(evaluate, bounds=[lat_bounds, lon_bounds], args=(customers_df, service_centers_df),maxiter=1000)
     optimal_new_center = np.round(result.x, 6)
     total_existing_distance = customers_df['minimum'].sum()
 
@@ -235,7 +235,7 @@ def upload_custom_bounds():
     lon_upper = float(request.form['lon_upper'])
 
     # Run dual annealing with custom bounds
-    result = dual_annealing(evaluate, bounds=[(lat_lower, lat_upper), (lon_lower, lon_upper)], args=(customers_df, service_centers_df),maxiter=100)
+    result = dual_annealing(evaluate, bounds=[(lat_lower, lat_upper), (lon_lower, lon_upper)], args=(customers_df, service_centers_df),maxiter=1000)
     optimal_new_center = np.round(result.x, 6)
     total_existing_distance = customers_df['minimum'].sum()
 
